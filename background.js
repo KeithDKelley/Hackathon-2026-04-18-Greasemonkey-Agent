@@ -94,6 +94,10 @@ async function handleExecuteScript(tabId, url, code) {
       log("scripting API fallback succeeded");
     } catch (e2) {
       err("scripting API fallback also failed:", e2.message);
+      // Log active permissions so we can see if <all_urls> was actually granted
+      chrome.permissions.getAll((perms) => {
+        err("active permissions at time of failure:", JSON.stringify(perms));
+      });
       scriptError = e2.message;
     }
   }
