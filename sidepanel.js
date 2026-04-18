@@ -50,15 +50,16 @@ function appendMessage(role, content, code = null) {
 }
 
 async function runScript(code, btn) {
-  const tabId = await getActiveTabId();
-  if (!tabId) { alert("No active tab found."); return; }
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) { alert("No active tab found."); return; }
 
   btn.disabled = true;
   btn.textContent = "Running…";
 
   const response = await chrome.runtime.sendMessage({
     type: "EXECUTE_SCRIPT",
-    tabId,
+    tabId: tab.id,
+    url: tab.url,
     code,
   });
 

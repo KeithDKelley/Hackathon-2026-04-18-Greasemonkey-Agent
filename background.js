@@ -21,7 +21,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === "EXECUTE_SCRIPT") {
-    handleExecuteScript(message.tabId, message.code).then(sendResponse);
+    handleExecuteScript(message.tabId, message.url, message.code).then(sendResponse);
     return true;
   }
 });
@@ -53,8 +53,21 @@ Page text (truncated): ${pageContext.bodyText}`;
   return { content: data.content[0].text };
 }
 
-async function handleExecuteScript(_tabId, _code) {
-  // TODO: chrome.scripting.executeScript to inject code into the tab
-  // return { success: true } or { error: "..." }
-  return { error: "Not implemented" };
+async function handleExecuteScript(tabId, url, code) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (src) => new Function(src)(),
+      args: [code],
+    });
+
+    // Persist script so content.js auto-runs it on future page loads
+    const { persistedScripts = {} } = await chrome.storage.local.get("persistedScripts");
+    persistedScripts[url] = [...(persistedScripts[url] ?? []), code];
+    await chrome.storage.local.set({ persistedScripts });
+
+    return { success: true };
+  } catch (err) {
+    return { error: err.message };
+  }
 }
