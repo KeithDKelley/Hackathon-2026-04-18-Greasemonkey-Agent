@@ -1,15 +1,21 @@
 // Service worker: opens side panel on action click, routes messages between
 // sidepanel and the Claude API, and executes generated scripts in the active tab.
 
+const log = (...args) => console.log("[GMA background]", ...args);
+const err = (...args) => console.error("[GMA background]", ...args);
+
 // Chrome: open the side panel on toolbar click. Firefox opens the sidebar
 // automatically via sidebar_action and doesn't have chrome.sidePanel.
 if (chrome.sidePanel) {
   chrome.action.onClicked.addListener((tab) => {
+    log("opening side panel for tab", tab.id, tab.url);
     chrome.sidePanel.open({ tabId: tab.id });
   });
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  log("received message", message.type, message);
+
   if (message.type === "GET_PAGE_CONTEXT") {
     handleGetPageContext(message.tabId).then(sendResponse);
     return true; // keep channel open for async response
@@ -37,6 +43,8 @@ async function handleCallClaude({ apiKey, messages, pageContext }) {
 Current page: ${pageContext.title} — ${pageContext.url}
 Page text (truncated): ${pageContext.bodyText}`;
 
+  log("calling Claude API, message count:", messages.length);
+
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -48,27 +56,45 @@ Page text (truncated): ${pageContext.bodyText}`;
     body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1024, system, messages }),
   });
 
-  if (!response.ok) return { error: `API error ${response.status}: ${await response.text()}` };
+  log("Claude API response status:", response.status);
+
+  if (!response.ok) {
+    const body = await response.text();
+    err("Claude API error:", response.status, body);
+    return { error: `API error ${response.status}: ${body}` };
+  }
+
   const data = await response.json();
-  return { content: data.content[0].text };
+  const content = data.content[0].text;
+  log("Claude response length:", content.length, "chars");
+  return { content };
 }
 
 async function handleExecuteScript(tabId, url, code) {
+  log("executing script on tab", tabId, url, "code length:", code.length);
+
   // Route through the content script (already injected on all pages) to avoid
   // the host permission check that chrome.scripting.executeScript requires.
   // sendMessage throws if the content script isn't loaded — prompt user to refresh.
   let response;
   try {
     response = await chrome.tabs.sendMessage(tabId, { type: "RUN_SCRIPT", code });
-  } catch {
+    log("RUN_SCRIPT response:", response);
+  } catch (e) {
+    err("sendMessage failed (content script not loaded?):", e.message);
     return { error: "Content script not found — please refresh the page and try again." };
   }
-  if (response?.error) return { error: response.error };
+
+  if (response?.error) {
+    err("script execution error:", response.error);
+    return { error: response.error };
+  }
 
   // Persist script so content.js auto-runs it on future page loads
   const { persistedScripts = {} } = await chrome.storage.local.get("persistedScripts");
   persistedScripts[url] = [...(persistedScripts[url] ?? []), code];
   await chrome.storage.local.set({ persistedScripts });
+  log("persisted script for", url, "— total scripts for this URL:", persistedScripts[url].length);
 
   return { success: true };
 }

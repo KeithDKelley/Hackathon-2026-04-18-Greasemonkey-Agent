@@ -1,6 +1,9 @@
 // Manages the chat UI and coordinates with background.js for Claude calls
 // and script injection.
 
+const log = (...args) => console.log("[GMA sidepanel]", ...args);
+const err = (...args) => console.error("[GMA sidepanel]", ...args);
+
 /** @type {{ role: "user" | "assistant", content: string }[]} */
 const conversationHistory = [];
 
@@ -51,19 +54,24 @@ function appendMessage(role, content, code = null) {
 
 async function runScript(code, btn) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  log("run script clicked — tab:", tab?.id, tab?.url);
+
   if (!tab) { alert("No active tab found."); return; }
 
   btn.disabled = true;
   btn.textContent = "Running…";
 
+  log("sending EXECUTE_SCRIPT to background");
   const response = await chrome.runtime.sendMessage({
     type: "EXECUTE_SCRIPT",
     tabId: tab.id,
     url: tab.url,
     code,
   });
+  log("EXECUTE_SCRIPT response:", response);
 
   if (response?.error) {
+    err("script execution failed:", response.error);
     btn.textContent = "Error — retry?";
     btn.disabled = false;
     appendMessage("assistant", `Error running script: ${response.error}`);
@@ -75,6 +83,7 @@ async function runScript(code, btn) {
 async function sendMessage(userText) {
   const apiKey = await getApiKey();
   if (!apiKey) {
+    log("no API key set");
     noKeyBanner.classList.remove("hidden");
     return;
   }
@@ -86,25 +95,31 @@ async function sendMessage(userText) {
   inputEl.disabled = true;
 
   const tabId = await getActiveTabId();
+  log("fetching page context for tab", tabId);
   const pageContext = await chrome.runtime.sendMessage({ type: "GET_PAGE_CONTEXT", tabId });
+  log("page context:", pageContext);
 
+  log("sending CALL_CLAUDE, history length:", conversationHistory.length);
   const response = await chrome.runtime.sendMessage({
     type: "CALL_CLAUDE",
     apiKey,
     pageContext,
     messages: conversationHistory,
   });
+  log("CALL_CLAUDE response:", response);
 
   sendBtn.disabled = false;
   inputEl.disabled = false;
   inputEl.focus();
 
   if (response?.error) {
+    err("Claude call failed:", response.error);
     appendMessage("assistant", `Error: ${response.error}`);
     return;
   }
 
   const generatedCode = response.content;
+  log("received generated code, length:", generatedCode.length);
   conversationHistory.push({ role: "assistant", content: generatedCode });
   appendMessage("assistant", null, generatedCode);
 }
@@ -127,5 +142,6 @@ inputEl.addEventListener("keydown", (e) => {
 
 // On load, check for API key
 getApiKey().then((key) => {
+  log("API key present:", !!key);
   if (!key) noKeyBanner.classList.remove("hidden");
 });
