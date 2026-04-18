@@ -54,20 +54,15 @@ Page text (truncated): ${pageContext.bodyText}`;
 }
 
 async function handleExecuteScript(tabId, url, code) {
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: (src) => new Function(src)(),
-      args: [code],
-    });
+  // Route through the content script (already injected on all pages) to avoid
+  // the host permission check that chrome.scripting.executeScript requires.
+  const response = await chrome.tabs.sendMessage(tabId, { type: "RUN_SCRIPT", code });
+  if (response?.error) return { error: response.error };
 
-    // Persist script so content.js auto-runs it on future page loads
-    const { persistedScripts = {} } = await chrome.storage.local.get("persistedScripts");
-    persistedScripts[url] = [...(persistedScripts[url] ?? []), code];
-    await chrome.storage.local.set({ persistedScripts });
+  // Persist script so content.js auto-runs it on future page loads
+  const { persistedScripts = {} } = await chrome.storage.local.get("persistedScripts");
+  persistedScripts[url] = [...(persistedScripts[url] ?? []), code];
+  await chrome.storage.local.set({ persistedScripts });
 
-    return { success: true };
-  } catch (err) {
-    return { error: err.message };
-  }
+  return { success: true };
 }
