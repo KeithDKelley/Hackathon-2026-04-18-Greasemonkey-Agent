@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Chat with Claude to generate and run scripts that modify the current page.",
   "permissions": ["sidePanel", "scripting", "activeTab", "storage", "tabs"],
-  "host_permissions": ["https://api.anthropic.com/*"],
+  "host_permissions": ["https://api.anthropic.com/*", "<all_urls>"],
   "background": {
     "service_worker": "background.js",
     "scripts": ["background.js"]
