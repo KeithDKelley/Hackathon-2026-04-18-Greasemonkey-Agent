@@ -1,17 +1,8 @@
-// Service worker: opens side panel on action click, routes messages between
-// sidepanel and the Claude API, and executes generated scripts in the active tab.
+// Background page: routes messages between sidepanel and the Claude API,
+// and executes generated scripts in the active tab.
 
 const log = (...args) => console.log("[GMA background]", ...args);
 const err = (...args) => console.error("[GMA background]", ...args);
-
-// Chrome: open the side panel on toolbar click. Firefox opens the sidebar
-// automatically via sidebar_action and doesn't have chrome.sidePanel.
-if (chrome.sidePanel) {
-  chrome.action.onClicked.addListener((tab) => {
-    log("opening side panel for tab", tab.id, tab.url);
-    chrome.sidePanel.open({ tabId: tab.id });
-  });
-}
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   log("received message", message.type, message);
@@ -74,8 +65,7 @@ async function handleExecuteScript(tabId, url, code) {
   log("executing script on tab", tabId, url, "code length:", code.length);
 
   // Prefer routing through the content script. If it isn't loaded (tab opened
-  // before the extension was installed/reloaded), fall back to scripting API.
-  let scriptError = null;
+  // before the extension was installed/reloaded), fall back to tabs.executeScript.
   try {
     const response = await chrome.tabs.sendMessage(tabId, { type: "RUN_SCRIPT", code });
     log("RUN_SCRIPT response:", response);
@@ -84,25 +74,15 @@ async function handleExecuteScript(tabId, url, code) {
       return { error: response.error };
     }
   } catch (e) {
-    log("content script not available, falling back to scripting API:", e.message);
+    log("content script not available, falling back to tabs.executeScript:", e.message);
     try {
-      await chrome.scripting.executeScript({
-        target: { tabId },
-        func: (src) => new Function(src)(),
-        args: [code],
-      });
-      log("scripting API fallback succeeded");
+      await chrome.tabs.executeScript(tabId, { code: `new Function(${JSON.stringify(code)})()` });
+      log("tabs.executeScript fallback succeeded");
     } catch (e2) {
-      err("scripting API fallback also failed:", e2.message);
-      // Log active permissions so we can see if <all_urls> was actually granted
-      chrome.permissions.getAll((perms) => {
-        err("active permissions at time of failure:", JSON.stringify(perms));
-      });
-      scriptError = e2.message;
+      err("tabs.executeScript fallback also failed:", e2.message);
+      return { error: e2.message };
     }
   }
-
-  if (scriptError) return { error: scriptError };
 
   // Persist script so content.js auto-runs it on future page loads
   const { persistedScripts = {} } = await chrome.storage.local.get("persistedScripts");
