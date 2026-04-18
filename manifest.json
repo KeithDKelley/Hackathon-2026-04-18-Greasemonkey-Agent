@@ -6,7 +6,8 @@
   "permissions": ["sidePanel", "scripting", "activeTab", "storage", "tabs"],
   "host_permissions": ["https://api.anthropic.com/*"],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
   },
   "side_panel": {
     "default_path": "sidepanel.html"
