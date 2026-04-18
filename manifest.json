@@ -11,8 +11,18 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
+  "sidebar_action": {
+    "default_title": "Greasemonkey Agent",
+    "default_panel": "sidepanel.html"
+  },
   "action": {
     "default_title": "Open Greasemonkey Agent"
   },
-  "options_page": "settings.html"
+  "options_page": "settings.html",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "greasemonkey-agent@keithkelley.dev",
+      "strict_min_version": "109.0"
+    }
+  }
 }

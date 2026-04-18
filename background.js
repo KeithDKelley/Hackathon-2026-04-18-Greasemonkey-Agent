@@ -1,9 +1,13 @@
 // Service worker: opens side panel on action click, routes messages between
 // sidepanel and the Claude API, and executes generated scripts in the active tab.
 
-chrome.action.onClicked.addListener((tab) => {
-  chrome.sidePanel.open({ tabId: tab.id });
-});
+// Chrome: open the side panel on toolbar click. Firefox opens the sidebar
+// automatically via sidebar_action and doesn't have chrome.sidePanel.
+if (chrome.sidePanel) {
+  chrome.action.onClicked.addListener((tab) => {
+    chrome.sidePanel.open({ tabId: tab.id });
+  });
+}
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "GET_PAGE_CONTEXT") {
