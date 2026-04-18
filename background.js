@@ -43,6 +43,7 @@ Page text (truncated): ${pageContext.bodyText}`;
       "content-type": "application/json",
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1024, system, messages }),
   });
