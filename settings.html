@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Greasemonkey Agent — Settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 400px; margin: 40px auto; padding: 0 20px; }
+    h1 { font-size: 18px; margin-bottom: 20px; }
+    label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
+    input { width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+    button { margin-top: 12px; padding: 8px 20px; background: #1a73e8; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+    #status { margin-top: 10px; font-size: 13px; color: #34a853; min-height: 18px; }
+  </style>
+</head>
+<body>
+  <h1>Settings</h1>
+  <label for="api-key">Anthropic API Key</label>
+  <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off" />
+  <button id="save-btn">Save</button>
+  <div id="status"></div>
+  <script src="settings.js"></script>
+</body>
+</html>
