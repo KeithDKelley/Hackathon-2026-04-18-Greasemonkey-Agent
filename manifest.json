@@ -1,22 +1,18 @@
 {
-  "manifest_version": 3,
+  "manifest_version": 2,
   "name": "Greasemonkey Agent",
   "version": "1.0.0",
   "description": "Chat with Claude to generate and run scripts that modify the current page.",
-  "permissions": ["sidePanel", "scripting", "activeTab", "storage", "tabs"],
-  "host_permissions": ["https://api.anthropic.com/*", "<all_urls>"],
+  "permissions": ["activeTab", "storage", "tabs", "<all_urls>"],
   "background": {
-    "service_worker": "background.js",
-    "scripts": ["background.js"]
-  },
-  "side_panel": {
-    "default_path": "sidepanel.html"
+    "scripts": ["background.js"],
+    "persistent": false
   },
   "sidebar_action": {
     "default_title": "Greasemonkey Agent",
     "default_panel": "sidepanel.html"
   },
-  "action": {
+  "browser_action": {
     "default_title": "Open Greasemonkey Agent"
   },
   "content_scripts": [

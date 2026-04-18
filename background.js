@@ -1,18 +1,10 @@
-// Service worker: opens side panel on action click, routes messages between
-// sidepanel and the Claude API, and executes generated scripts in the active tab.
-
-// Chrome: open the side panel on toolbar click. Firefox opens the sidebar
-// automatically via sidebar_action and doesn't have chrome.sidePanel.
-if (chrome.sidePanel) {
-  chrome.action.onClicked.addListener((tab) => {
-    chrome.sidePanel.open({ tabId: tab.id });
-  });
-}
+// Background page: routes messages between sidepanel and the Claude API,
+// and executes generated scripts in the active tab via MV2 tabs.executeScript.
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "GET_PAGE_CONTEXT") {
     handleGetPageContext(message.tabId).then(sendResponse);
-    return true; // keep channel open for async response
+    return true;
   }
 
   if (message.type === "CALL_CLAUDE") {
@@ -54,20 +46,42 @@ Page text (truncated): ${pageContext.bodyText}`;
 }
 
 async function handleExecuteScript(tabId, url, code) {
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: (src) => new Function(src)(),
-      args: [code],
+  // Wrap the user code to capture console.log output and return result/error.
+  // Uses eval so the code runs in the page's own scope (same as Greasemonkey).
+  const wrapped = `(function() {
+    var _logs = [];
+    var _origLog = console.log.bind(console);
+    console.log = function() {
+      var args = Array.prototype.slice.call(arguments);
+      _logs.push(args.map(String).join(' '));
+      _origLog.apply(console, args);
+    };
+    var _result, _error;
+    try { _result = eval(${JSON.stringify(code)}); }
+    catch(e) { _error = e.message; }
+    finally { console.log = _origLog; }
+    return ({ result: _result, error: _error, logs: _logs });
+  })()`;
+
+  return new Promise((resolve) => {
+    chrome.tabs.executeScript(tabId, { code: wrapped }, (results) => {
+      if (chrome.runtime.lastError) {
+        resolve({ error: chrome.runtime.lastError.message });
+        return;
+      }
+
+      const result = results && results[0];
+      if (result && result.error) {
+        resolve({ error: result.error });
+        return;
+      }
+
+      // Persist script so content.js auto-runs it on future page loads
+      chrome.storage.local.get("persistedScripts", (data) => {
+        const persistedScripts = data.persistedScripts || {};
+        persistedScripts[url] = (persistedScripts[url] || []).concat(code);
+        chrome.storage.local.set({ persistedScripts }, () => resolve({ success: true }));
+      });
     });
-
-    // Persist script so content.js auto-runs it on future page loads
-    const { persistedScripts = {} } = await chrome.storage.local.get("persistedScripts");
-    persistedScripts[url] = [...(persistedScripts[url] ?? []), code];
-    await chrome.storage.local.set({ persistedScripts });
-
-    return { success: true };
-  } catch (err) {
-    return { error: err.message };
-  }
+  });
 }
