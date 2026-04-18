@@ -8,8 +8,14 @@ const err = (...args) => console.error("[GMA content]", ...args);
 
 log("content script loaded on", location.href);
 
+// Injects code into a <script> tag so it runs in the page's real JS context
+// (with access to page globals, window, etc.) rather than the isolated content
+// script world. The element is removed immediately after insertion.
 function runCode(code) {
-  new Function(code)();
+  const el = document.createElement("script");
+  el.textContent = code;
+  document.documentElement.appendChild(el);
+  el.remove();
 }
 
 chrome.storage.local.get("persistedScripts", ({ persistedScripts = {} }) => {

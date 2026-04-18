@@ -76,7 +76,9 @@ async function handleExecuteScript(tabId, url, code) {
   } catch (e) {
     log("content script not available, falling back to tabs.executeScript:", e.message);
     try {
-      await chrome.tabs.executeScript(tabId, { code: `new Function(${JSON.stringify(code)})()` });
+      // Inject via <script> tag so code runs in page context, not isolated world
+      const inject = `(function(){var s=document.createElement('script');s.textContent=${JSON.stringify(code)};document.documentElement.appendChild(s);s.remove();})()`;
+      await chrome.tabs.executeScript(tabId, { code: inject });
       log("tabs.executeScript fallback succeeded");
     } catch (e2) {
       err("tabs.executeScript fallback also failed:", e2.message);
