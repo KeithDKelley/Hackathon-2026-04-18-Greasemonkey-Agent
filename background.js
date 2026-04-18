@@ -56,7 +56,13 @@ Page text (truncated): ${pageContext.bodyText}`;
 async function handleExecuteScript(tabId, url, code) {
   // Route through the content script (already injected on all pages) to avoid
   // the host permission check that chrome.scripting.executeScript requires.
-  const response = await chrome.tabs.sendMessage(tabId, { type: "RUN_SCRIPT", code });
+  // sendMessage throws if the content script isn't loaded — prompt user to refresh.
+  let response;
+  try {
+    response = await chrome.tabs.sendMessage(tabId, { type: "RUN_SCRIPT", code });
+  } catch {
+    return { error: "Content script not found — please refresh the page and try again." };
+  }
   if (response?.error) return { error: response.error };
 
   // Persist script so content.js auto-runs it on future page loads
