@@ -73,22 +73,32 @@ Page text (truncated): ${pageContext.bodyText}`;
 async function handleExecuteScript(tabId, url, code) {
   log("executing script on tab", tabId, url, "code length:", code.length);
 
-  // Route through the content script (already injected on all pages) to avoid
-  // the host permission check that chrome.scripting.executeScript requires.
-  // sendMessage throws if the content script isn't loaded — prompt user to refresh.
-  let response;
+  // Prefer routing through the content script. If it isn't loaded (tab opened
+  // before the extension was installed/reloaded), fall back to scripting API.
+  let scriptError = null;
   try {
-    response = await chrome.tabs.sendMessage(tabId, { type: "RUN_SCRIPT", code });
+    const response = await chrome.tabs.sendMessage(tabId, { type: "RUN_SCRIPT", code });
     log("RUN_SCRIPT response:", response);
+    if (response?.error) {
+      err("script execution error from content script:", response.error);
+      return { error: response.error };
+    }
   } catch (e) {
-    err("sendMessage failed (content script not loaded?):", e.message);
-    return { error: "Content script not found — please refresh the page and try again." };
+    log("content script not available, falling back to scripting API:", e.message);
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        func: (src) => new Function(src)(),
+        args: [code],
+      });
+      log("scripting API fallback succeeded");
+    } catch (e2) {
+      err("scripting API fallback also failed:", e2.message);
+      scriptError = e2.message;
+    }
   }
 
-  if (response?.error) {
-    err("script execution error:", response.error);
-    return { error: response.error };
-  }
+  if (scriptError) return { error: scriptError };
 
   // Persist script so content.js auto-runs it on future page loads
   const { persistedScripts = {} } = await chrome.storage.local.get("persistedScripts");
