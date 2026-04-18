@@ -26,18 +26,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
-async function handleGetPageContext(tabId) {
+async function handleGetPageContext(_tabId) {
   // TODO: extract URL, title, and truncated body text from the tab
   return { url: "", title: "", bodyText: "" };
 }
 
-async function handleCallClaude({ apiKey, messages }) {
-  // TODO: POST to https://api.anthropic.com/v1/messages with the conversation
-  // and return { content: "<generated JS>" } or { error: "..." }
-  return { error: "Not implemented" };
+async function handleCallClaude({ apiKey, messages, pageContext }) {
+  const system = `You are a browser script generator. The user describes a change they want on the current page and you output ONLY valid JavaScript — no markdown, no explanation, no code fences. The code runs directly in the page context.
+
+Current page: ${pageContext.title} — ${pageContext.url}
+Page text (truncated): ${pageContext.bodyText}`;
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1024, system, messages }),
+  });
+
+  if (!response.ok) return { error: `API error ${response.status}: ${await response.text()}` };
+  const data = await response.json();
+  return { content: data.content[0].text };
 }
 
-async function handleExecuteScript(tabId, code) {
+async function handleExecuteScript(_tabId, _code) {
   // TODO: chrome.scripting.executeScript to inject code into the tab
   // return { success: true } or { error: "..." }
   return { error: "Not implemented" };
